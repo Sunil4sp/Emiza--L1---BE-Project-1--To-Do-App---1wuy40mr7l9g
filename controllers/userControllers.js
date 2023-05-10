@@ -4,6 +4,12 @@ const bcrypt  = require('bcrypt');
 
 const saltRounds = 10;
 const JWT_SECRET = "newtonSchool";
+const dotenv = require('dotenv');
+dotenv.config();
+
+const options = {
+    expiresIn: "1h",
+};
 
 /*
 loginUser Controller
@@ -62,8 +68,32 @@ const loginUser =async (req, res) => {
     const email  = req.body.email;
     const password = req.body.password;
 
-    //Write your code here.
+    //check email and password
+    let user = await Users.findOne({ email });
+    if (!user) return res.status(404).json({
+        msg: "User with this E-mail does not exist !!",
+        error: err.msg,
+    });
 
+    try {
+        const isValid = await bcrypt.compare(password, user.password);
+        if(!isValid) return res.status(403).json({
+            msg: "Invalid email or Password, try again !!",
+            error: err.msg,
+        });
+        const payload= { _id };
+        const token = await jwt.sign(payload, env.JWT_SECRET, options);
+        return res.header("X-Auth-Token", token).status(200).json({
+            msg: "User logged in successfully",
+            login: true,
+        });
+    } catch (err) {
+        return res.status(500).json({
+            msg: "Something went wrong...",
+            error: err.msg,
+            login: false,
+        });
+    }
 }
 
 
@@ -119,8 +149,42 @@ const signupUser = async (req, res) => {
 
     const {email, password, name, role} = req.body;
 
-     //Write your code here.
+     //check for user existance
+     let user = await Users.findOne({ email });
+     if (user) return res.status(409).json({
+        msg: "User with given Email already registered",
+        error: err.msg,
+    });
 
+     try {
+        console.log("Creating new user...");
+        user = new Users({ email, password, name, role });
+        console.log("before hashing user", user);
+
+        //hashing the password
+        const salt = await bcrypt.genSalt(saltRounds);
+        user.password = await bcrypt.hash(password, salt);
+        console.log("after hashing user", user);
+
+        //save it on database
+        const newUser = await user.save();
+
+        //JWt create token
+        const token = generateToken({ _id: user._id, email: user.email, role });
+
+        return res.header("X-Auth-Token", token).status(200).json({
+            msg: "User SignedUp successfully...",
+            data:{
+            name: newUser.name,
+            email: newUser.email,
+            }
+        });
+     } catch (err) {
+        return res.status(404).json({
+            msg: "Something went wrong",
+            error: err.msg,
+        });
+     }
 }
 
 module.exports = { loginUser , signupUser };
