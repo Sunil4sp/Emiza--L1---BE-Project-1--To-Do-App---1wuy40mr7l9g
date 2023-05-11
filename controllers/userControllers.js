@@ -76,7 +76,7 @@ const loginUser = async (req, res) => {
 
   if (!isValid)
     return res.status(403).json({
-      message: "Invalid email or Password, try again !!",
+      message: "Invalid Password, try again !!",
       status: "fail",
     });
 
