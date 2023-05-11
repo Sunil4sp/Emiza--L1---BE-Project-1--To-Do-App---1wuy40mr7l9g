@@ -1,15 +1,11 @@
-const Users   = require("../models/user.js");
+const Users = require("../models/user.js");
 const jwt = require("jsonwebtoken");
-const bcrypt  = require('bcrypt');
+const bcrypt = require("bcrypt");
+const { token } = require("../authentication/jwt.js")
 
 const saltRounds = 10;
 const JWT_SECRET = "newtonSchool";
-const dotenv = require('dotenv');
-dotenv.config();
 
-const options = {
-    expiresIn: "1h",
-};
 
 /*
 loginUser Controller
@@ -63,40 +59,36 @@ json = {
 
 */
 
-const loginUser =async (req, res) => {
+const loginUser = async (req, res) => {
+  const email = req.body.email;
+  const password = req.body.password;
 
-    const email  = req.body.email;
-    const password = req.body.password;
+  //check email and password
+  let user = await Users.findOne({ email });
 
-    //check email and password
-    let user = await Users.findOne({ email });
-    if (!user) return res.status(404).json({
-        msg: "User with this E-mail does not exist !!",
-        error: err.msg,
+  if (!user)
+    return res.status(404).json({
+      message: "User with this E-mail does not exist !!",
+      status: "fail",
     });
 
-    try {
-        const isValid = await bcrypt.compare(password, user.password);
-        if(!isValid) return res.status(403).json({
-            msg: "Invalid email or Password, try again !!",
-            error: err.msg,
-        });
-        const payload= { _id };
-        const token = await jwt.sign(payload, env.JWT_SECRET, options);
-        return res.header("X-Auth-Token", token).status(200).json({
-            msg: "User logged in successfully",
-            login: true,
-        });
-    } catch (err) {
-        return res.status(500).json({
-            msg: "Something went wrong...",
-            error: err.msg,
-            login: false,
-        });
-    }
-}
+  const isValid = await bcrypt.compare(password, user.password);
 
+  if (!isValid)
+    return res.status(403).json({
+      message: "Invalid email or Password, try again !!",
+      status: "fail",
+    });
 
+    /* function token(email, key){
+        return jwt.sign({email}, key, {expiresIn: "1h"});
+    } */
+    
+  return res.status(200).json({
+    status: "success",
+    token: token(user.email, JWT_SECRET),
+  });
+};
 
 /*
 
@@ -147,45 +139,42 @@ json = {
 
 const signupUser = async (req, res) => {
 
-    const {email, password, name, role} = req.body;
+  const { email, password, name, role } = req.body;
 
-     //check for user existance
-     let user = await Users.findOne({ email });
-     if (user) return res.status(409).json({
-        msg: "User with given Email already registered",
-        error: err.msg,
+  //check for user existance
+  let userExist = await Users.findOne({ email });
+
+  if (userExist) return res.status(409).json({
+      message: "User with given Email allready register",
+      status: 'fail',
     });
 
-     try {
-        console.log("Creating new user...");
-        user = new Users({ email, password, name, role });
-        console.log("before hashing user", user);
+  /* try { */
+    console.log("Creating new user...");
 
-        //hashing the password
-        const salt = await bcrypt.genSalt(saltRounds);
-        user.password = await bcrypt.hash(password, salt);
-        console.log("after hashing user", user);
+    const user = new Users({ email, password, name, role });
 
-        //save it on database
-        const newUser = await user.save();
+    console.log("before hashing user", user);
 
-        //JWt create token
-        const token = generateToken({ _id: user._id, email: user.email, role });
+    //hashing the password
+    const salt = await bcrypt.genSalt(saltRounds);
+    user.password = await bcrypt.hash(password, salt);
+    console.log("after hashing user", user);
 
-        return res.header("X-Auth-Token", token).status(200).json({
-            msg: "User SignedUp successfully...",
-            data:{
-            name: newUser.name,
-            email: newUser.email,
-            }
-        });
-     } catch (err) {
-        return res.status(404).json({
-            msg: "Something went wrong",
-            error: err.msg,
-        });
-     }
-}
+    //save it on database
+    const newUser = await user.save();
 
-module.exports = { loginUser , signupUser };
+    return res.status(200).json({
+        message: "User SignedUp successfully",
+        status: 'success',
+        data:   newUser
+      });
+ /*  } catch (err) {
+    return res.status(404).json({
+      message: "Something went wrong",
+      status: 'fail',
+    });
+  } */
+};
 
+module.exports = { loginUser, signupUser };
